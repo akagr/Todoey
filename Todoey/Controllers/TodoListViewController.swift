@@ -13,13 +13,25 @@ class TodoListViewController: UITableViewController {
 
     let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     var itemArray = [Item]()
+    @IBOutlet weak var searchBar: UISearchBar!
 
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        let tap: UITapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(self.dismissKeyboard))
+        view.addGestureRecognizer(tap)
+
+        searchBar.delegate = self
         loadItems()
     }
 
-    // MARK: Tableview Datasource Methods
+    @objc func dismissKeyboard() {
+        DispatchQueue.main.async {
+            self.searchBar.resignFirstResponder()
+        }
+    }
+
+    // MARK: - Tableview Datasource Methods
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return itemArray.count
@@ -32,17 +44,17 @@ class TodoListViewController: UITableViewController {
         return cell
     }
 
-    // MARK: TableView Delegate Methods
+    // MARK: - TableView Delegate Methods
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done
 
         saveItems()
-        tableView.reloadData()
+
         tableView.deselectRow(at: indexPath, animated: true)
     }
 
-    // MARK: Add new items
+    // MARK: - Add new items
 
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
         var textField = UITextField()
@@ -56,11 +68,10 @@ class TodoListViewController: UITableViewController {
             let newItem = Item(context: self.context)
             newItem.title = newTodoText
             newItem.done = false
+
             self.itemArray.append(newItem)
 
             self.saveItems()
-
-            self.tableView.reloadData()
         }
 
         alert.addTextField { (alertTextField) in
@@ -72,7 +83,7 @@ class TodoListViewController: UITableViewController {
         present(alert, animated: true, completion: nil)
     }
 
-    // MARK: Model Manipulation Methods
+    // MARK: - Model Manipulation Methods
 
     func saveItems() {
         do {
@@ -80,15 +91,42 @@ class TodoListViewController: UITableViewController {
         } catch {
             print("Error saving context \(error)")
         }
+
+        tableView.reloadData()
     }
 
-    func loadItems() {
-        let request: NSFetchRequest<Item> = Item.fetchRequest()
+    func loadItems(with request: NSFetchRequest<Item> = Item.fetchRequest()) {
         do {
             itemArray = try context.fetch(request)
         } catch {
             print("Error fetching data from context \(error)")
         }
+
+        tableView.reloadData()
     }
+
+
 }
 
+// MARK: - Search bar methods
+
+extension TodoListViewController: UISearchBarDelegate {
+
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        dismissKeyboard()
+    }
+
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0 {
+            loadItems()
+            return
+        }
+        let request: NSFetchRequest<Item> = Item.fetchRequest()
+
+        request.predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchBar.text!)
+
+        request.sortDescriptors = [NSSortDescriptor(key: "title", ascending: true)]
+
+        loadItems(with: request)
+    }
+}
