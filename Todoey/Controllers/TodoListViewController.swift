@@ -7,11 +7,11 @@
 //
 
 import UIKit
+import CoreData
 
 class TodoListViewController: UITableViewController {
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
 
-    let ITEMS_DEFAULTS_KEY = "TodoItemArray"
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
     var itemArray = [Item]()
 
     override func viewDidLoad() {
@@ -36,6 +36,7 @@ class TodoListViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         itemArray[indexPath.row].done = !itemArray[indexPath.row].done
+
         saveItems()
         tableView.reloadData()
         tableView.deselectRow(at: indexPath, animated: true)
@@ -51,8 +52,10 @@ class TodoListViewController: UITableViewController {
         let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
             // this will happen when user clicks on Add Item button in alert
             guard let newTodoText = textField.text else { return }
-            let newItem = Item()
+
+            let newItem = Item(context: self.context)
             newItem.title = newTodoText
+            newItem.done = false
             self.itemArray.append(newItem)
 
             self.saveItems()
@@ -72,22 +75,19 @@ class TodoListViewController: UITableViewController {
     // MARK: Model Manipulation Methods
 
     func saveItems() {
-        let encoder = PropertyListEncoder()
         do {
-            let data = try encoder.encode(itemArray)
-            try data.write(to: dataFilePath!)
+            try context.save()
         } catch {
-            print("Error encoding \(error)")
+            print("Error saving context \(error)")
         }
     }
 
     func loadItems() {
-        guard let data = try? Data(contentsOf: dataFilePath!) else { return }
-        let decoder = PropertyListDecoder()
+        let request: NSFetchRequest<Item> = Item.fetchRequest()
         do {
-            itemArray = try decoder.decode([Item].self, from: data)
+            itemArray = try context.fetch(request)
         } catch {
-            print("Error decoding \(error)")
+            print("Error fetching data from context \(error)")
         }
     }
 }
