@@ -9,7 +9,7 @@
 import UIKit
 import RealmSwift
 
-class TodoListViewController: UITableViewController {
+class TodoListViewController: SwipeTableViewController {
 
     let realm = try! Realm()
     var items: Results<Item>?
@@ -27,8 +27,30 @@ class TodoListViewController: UITableViewController {
         let tap: UITapGestureRecognizer = UITapGestureRecognizer(target: self, action:  #selector(dismissKeyboard))
         tap.cancelsTouchesInView = false
         view.addGestureRecognizer(tap)
-
         searchBar.delegate = self
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        guard let colorHex = selectedCategory?.backgroundColor else { return }
+        guard let color = UIColor(hexString: colorHex) else { return }
+
+        title = selectedCategory?.name
+        updateNavBar(withHexCode: colorHex)
+        searchBar.barTintColor = color
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        updateNavBar(withHexCode: "1D9BF6")
+    }
+
+    // MARK: - Navbar setup
+    
+    func updateNavBar(withHexCode colorHex: String) {
+        guard let color = UIColor(hexString: colorHex) else { fatalError() }
+        let contrast = UIColor(contrastingBlackOrWhiteColorOn: color, isFlat: true)
+        navigationController?.navigationBar.barTintColor = color
+        navigationController?.navigationBar.tintColor = contrast
+        navigationController?.navigationBar.largeTitleTextAttributes = [NSAttributedString.Key.foregroundColor: contrast]
     }
 
     @objc func dismissKeyboard() {
@@ -44,11 +66,17 @@ class TodoListViewController: UITableViewController {
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
 
         if let item = items?[indexPath.row] {
             cell.textLabel?.text = item.title
             cell.accessoryType = item.done ? .checkmark : .none
+            if let color = UIColor(hexString: selectedCategory!.backgroundColor)?.darken(byPercentage: CGFloat(indexPath.row) / CGFloat(items!.count)) {
+                cell.backgroundColor = color
+                cell.textLabel?.textColor = UIColor(contrastingBlackOrWhiteColorOn: color, isFlat: true)
+                cell.tintColor = cell.textLabel?.textColor
+            }
+
         } else {
             cell.textLabel?.text = "No Items Added"
         }
@@ -116,6 +144,18 @@ class TodoListViewController: UITableViewController {
         items = selectedCategory?.items.sorted(byKeyPath: "dateCreated", ascending: true)
 
         tableView.reloadData()
+    }
+
+    override func updateModel(at indexPath: IndexPath) {
+        if let item = items?[indexPath.row] {
+            do {
+                try realm.write {
+                    realm.delete(item)
+                }
+            } catch {
+                print("Error deleting item, \(error)")
+            }
+        }
     }
 
 
